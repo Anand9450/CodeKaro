@@ -1,0 +1,2 @@
+Upload Success!
+Response: {"imageUrl":"http://localhost:5000/uploads/profile-1771317229042.txt"}

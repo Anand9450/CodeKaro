@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+dist/
+build/
+.pnp
+.pnp.js
+
+# Environment Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Backend Specific
+apps/backend/uploads/*
+!apps/backend/uploads/.gitkeep
+apps/backend/data/*.json
+!apps/backend/data/db.json  # Maybe verify if we want to commit initial DB? Let's assume user starts fresh or keep sample.
+# Usually db.json shouldn't be committed if it changes frequently. Let's ignore it but keep structure.
+# But for this demo, keeping it is fine.
+# Actually, uploads should not be committed except placeholder.
+
+# Testing
+coverage/
+
+# Docker
+docker-compose.override.yml

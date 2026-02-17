@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Practice",
+    "description": "Master algorithms and data structures with our curated problem set.",
+    "button": "Start Coding"
+  },
+  {
+    "name": "Contest",
+    "description": "Compete against the best developers in real-time programming contests.",
+    "button": "Join Contest"
+  }
+]
