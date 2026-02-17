@@ -12,6 +12,8 @@ const Profile = () => {
     leetCode: '', codeForces: ''
   });
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     if (user?.id) {
       fetchProfile();
@@ -20,7 +22,7 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/user/profile?userId=${user.id}`);
+      const res = await axios.get(`${API_URL}/user/profile?userId=${user.id}`);
       setProfile(res.data);
       setFormData({
         fullName: res.data.fullName || '',
@@ -40,7 +42,7 @@ const Profile = () => {
 
   const handleUpdate = async () => {
     try {
-      await axios.put('http://localhost:5000/user/profile', {
+      await axios.put(`${API_URL}/user/profile`, {
         userId: user.id,
         ...formData
       });

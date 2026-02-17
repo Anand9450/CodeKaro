@@ -9,10 +9,12 @@ const Signup = () => {
   const navigate = useNavigate();
   const [error, setError] = useState('');
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/auth/register', {
+      await axios.post(`${API_URL}/auth/register`, {
         username,
         email,
         password

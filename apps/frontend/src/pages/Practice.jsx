@@ -17,12 +17,14 @@ const Practice = () => {
   // User solved data
   const [solvedIds, setSolvedIds] = useState([]);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     const fetchProblemsAndUser = async () => {
       try {
         const [probRes, userRes] = await Promise.all([
-          axios.get('http://localhost:5000/problems'),
-          user ? axios.get(`http://localhost:5000/user/profile?userId=${user.id}`) : Promise.resolve({ data: { solvedProblems: [] } })
+          axios.get(`${API_URL}/problems`),
+          user ? axios.get(`${API_URL}/user/profile?userId=${user.id}`) : Promise.resolve({ data: { solvedProblems: [] } })
         ]);
 
         setProblems(probRes.data);

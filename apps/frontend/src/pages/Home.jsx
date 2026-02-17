@@ -11,10 +11,12 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const probRes = await axios.get('http://localhost:5000/problems/daily');
+        const probRes = await axios.get(`${API_URL}/problems/daily`);
         setDailyProblem(probRes.data);
       } catch (err) {
         console.error("Error fetching dashboard data", err);
@@ -28,7 +30,7 @@ const Home = () => {
     setSearchQuery(query);
     if (query.length > 2) {
       try {
-        const res = await axios.get(`http://localhost:5000/users/search?q=${query}`);
+        const res = await axios.get(`${API_URL}/users/search?q=${query}`);
         setSearchResults(res.data);
       } catch (err) {
         console.error(err);

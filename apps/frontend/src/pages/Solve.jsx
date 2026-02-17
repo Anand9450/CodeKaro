@@ -30,10 +30,12 @@ const Solve = () => {
   const [showCoin, setShowCoin] = useState(false);
   const [rewards, setRewards] = useState(null);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     const fetchProblem = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/problems/${id}`);
+        const response = await axios.get(`${API_URL}/problems/${id}`);
         setProblem(response.data);
         // Set default boilerplate based on language
         if (response.data.starterCode) {
@@ -69,10 +71,9 @@ const Solve = () => {
     setRewards(null);
 
     try {
-      const apiBase = 'http://localhost:5000';
       const endpoint = type === 'run' ? '/submit/run' : '/submit';
 
-      const response = await axios.post(`${apiBase}${endpoint}`, {
+      const response = await axios.post(`${API_URL}${endpoint}`, {
         problemId: id,
         code,
         language
@@ -92,10 +93,9 @@ const Solve = () => {
   };
 
   const pollResult = async (submissionId, type) => {
-    const apiBase = 'http://localhost:5000';
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get(`${apiBase}/submit/${submissionId}`, {
+        const res = await axios.get(`${API_URL}/submit/${submissionId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 

@@ -2,8 +2,6 @@
 
 CodeKaro is a full-stack competitive programming platform designed to help developers practice coding problems, compete in contests, and track their progress. It features a modern, responsive UI, code execution engine, and comprehensive user profiles.
 
-![CodeKaro Dashboard](./dashboard-screenshot.png)
-
 ## 🚀 Features
 
 -   **User Authentication**: Secure Signup/Login with JWT.

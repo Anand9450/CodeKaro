@@ -8,10 +8,12 @@ const PublicProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/u/${username}`);
+        const res = await axios.get(`${API_URL}/u/${username}`);
         setProfile(res.data);
       } catch (err) {
         console.error("Error fetching public profile", err);
