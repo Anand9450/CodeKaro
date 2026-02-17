@@ -81,20 +81,19 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Serve Uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 
-
-app.use('/auth', authRoutes);
-app.use('/submit', submissionRoutes);
-app.use('/problems', problemRoutes);
-app.use('/admin', adminRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/submit', submissionRoutes);
+app.use('/api/problems', problemRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
   res.send('CodeKaro Backend Running (Updated)');
 });
 
 // User Profile Endpoint
-app.get('/user/profile', (req, res) => {
+app.get('/api/user/profile', (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.status(400).json({ message: "UserId required" });
 
@@ -121,7 +120,7 @@ app.get('/user/profile', (req, res) => {
   });
 });
 
-app.put('/user/profile', (req, res) => {
+app.put('/api/user/profile', (req, res) => {
   const { userId, fullName, bio, profilePicture, linkedIn, github, mobile, leetCode, codeForces, username } = req.body;
 
   if (!userId) return res.status(400).json({ message: "UserId required" });
@@ -151,16 +150,16 @@ app.put('/user/profile', (req, res) => {
 });
 
 // Upload Endpoint
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
   }
-  const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+  const imageUrl = `/api/uploads/${req.file.filename}`;
   res.json({ imageUrl });
 });
 
 // Search Users Endpoint
-app.get('/users/search', (req, res) => {
+app.get('/api/users/search', (req, res) => {
   const query = req.query.q ? req.query.q.toLowerCase() : '';
   if (!query) return res.json([]);
 
@@ -176,7 +175,7 @@ app.get('/users/search', (req, res) => {
 });
 
 // Get Public Profile by Username
-app.get('/u/:username', (req, res) => {
+app.get('/api/u/:username', (req, res) => {
   const username = req.params.username;
   const db = getDB();
   const user = db.users.find(u => u.username === username);
