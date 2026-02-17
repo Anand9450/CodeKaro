@@ -12,6 +12,26 @@ const POPULAR_SLUGS = [
 ];
 
 const router = express.Router();
+const supabase = require('./utils/supabase');
+
+// Fetch All Users (Admin Only)
+router.get('/users', async (req, res) => {
+  // In real app: verify req.user.role === 'admin'
+  // using Auth middleware.
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+});
 
 // Seed Route
 router.post('/seed-leetcode', async (req, res) => {

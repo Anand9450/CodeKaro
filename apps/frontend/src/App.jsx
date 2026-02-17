@@ -12,6 +12,7 @@ import Profile from './pages/Profile';
 import './App.css';
 
 import PublicProfile from './pages/PublicProfile';
+import Admin from './pages/Admin';
 
 function App() {
   return (
@@ -20,6 +21,11 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <Admin />
+            </ProtectedRoute>
+          } />
           <Route
             path="/"
             element={
