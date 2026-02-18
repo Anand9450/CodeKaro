@@ -17,7 +17,7 @@ Pop-Location
 if ($backendUrl -match "https://") {
     Write-Host "Deploying Frontend with API_URL=$backendUrl..."
     Push-Location "apps/frontend"
-    $frontendUrl = npx vercel deploy --prod --yes --env VITE_API_URL=$backendUrl 2>&1 | Select-Object -Last 1
+    $frontendUrl = npx vercel deploy --prod --yes --env VITE_API_URL="$backendUrl/api" 2>&1 | Select-Object -Last 1
     Write-Host "Frontend URL: $frontendUrl"
     Pop-Location
     

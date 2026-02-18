@@ -1,23 +1,18 @@
 const express = require('express');
 const redis = require('redis');
 const { v4: uuidv4 } = require('uuid');
-const { getDB } = require('./utils/jsonDb');
+const supabase = require('./utils/supabase');
 const jwt = require('jsonwebtoken');
 const { updateUserStats } = require('./utils/userStats');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_key';
 
-// Helper to get daily problem ID (duplicate logic, should be centralized)
-const getDailyProblemId = (problems) => {
-  const today = new Date().toDateString();
-  let hash = 0;
-  for (let i = 0; i < today.length; i++) {
-    hash = ((hash << 5) - hash) + today.charCodeAt(i);
-    hash |= 0;
-  }
-  const total = problems.length;
-  if (total === 0) return -1;
-  return problems[Math.abs(hash) % total].id;
+const getDailyProblemId = async () => {
+  const { data } = await supabase.from('problems').select('id').eq('is_daily', true).single();
+  if (data) return data.id;
+  // Fallback
+  const { data: fallback } = await supabase.from('problems').select('id').limit(1).single();
+  return fallback ? fallback.id : -1;
 };
 
 const router = express.Router();
@@ -47,14 +42,13 @@ const { exec } = require('child_process');
 const path = require('path');
 const os = require('os');
 
-const executeLocally = async (submissionId, problemId, code, language, testCases) => {
+const executeLocally = async (submissionId, problem, code, language, testCases) => {
+  const problemId = problem.id;
   const ext = language === 'python' ? 'py' : 'js';
   const tmpDir = os.tmpdir();
   const filePath = path.join(tmpDir, `${submissionId}.${ext}`);
 
-  const db = getDB();
-  const problem = db.problems.find(p => p.id == problemId);
-  const meta = problem ? problem.metaData : null;
+  const meta = problem.meta_data || problem.metaData;
 
   // Driver Code Generation
   let driverCode = "";
@@ -389,12 +383,19 @@ router.post('/', async (req, res) => {
     const { problemId, code, language } = req.body;
     if (!problemId || !code || !language) return res.status(400).json({ message: 'Missing fields' });
 
-    const db = getDB();
-    const problem = db.problems.find(p => p.id == problemId);
-    if (!problem) return res.status(404).json({ message: 'Problem not found' });
+    const { data: problem, error } = await supabase
+      .from('problems')
+      .select('*')
+      .eq('id', problemId)
+      .single();
+
+    if (error || !problem) return res.status(404).json({ message: 'Problem not found' });
 
     const submissionId = uuidv4();
-    const testCases = (problem.hiddenTestCases || problem.testCases).map(tc => {
+    // Prefer hidden_test_cases, fallback to test_cases
+    const sourceTestCases = problem.hidden_test_cases || problem.test_cases || [];
+
+    const testCases = sourceTestCases.map(tc => {
       const inputStr = typeof tc.input === 'object' ? JSON.stringify(tc.input) : tc.input;
       const outputStr = typeof tc.output === 'object' ? JSON.stringify(tc.output) : tc.output;
       return { input: inputStr, output: outputStr };
@@ -403,12 +404,13 @@ router.post('/', async (req, res) => {
     if (!isRedisConnected) {
       if (language === 'javascript' || language === 'python') {
         console.log(`Running locally (Redis down) for submission ${submissionId}`);
-        const result = await executeLocally(submissionId, problemId, code, language, testCases);
+        const result = await executeLocally(submissionId, problem, code, language, testCases);
 
         if (result.verdict === 'Accepted') {
-          const dailyId = getDailyProblemId(db.problems);
-          const score = problem.score || 10;
-          const stats = updateUserStats(userId, problemId, score, dailyId);
+          const dailyId = await getDailyProblemId();
+          const score = problem.score || (problem.difficulty === 'Easy' ? 10 : (problem.difficulty === 'Medium' ? 30 : 50));
+
+          const stats = await updateUserStats(userId, problemId, score, dailyId);
           result.rewards = stats;
         }
         memoryResults.set(submissionId, result);
@@ -455,9 +457,8 @@ router.get('/:id', async (req, res) => {
         if (metaStr) {
           const meta = JSON.parse(metaStr);
           if (meta.type === 'submit' && !meta.processed) {
-            const db = getDB();
-            const dailyId = getDailyProblemId(db.problems);
-            const stats = updateUserStats(meta.userId, meta.problemId, meta.score, dailyId);
+            const dailyId = await getDailyProblemId();
+            const stats = await updateUserStats(meta.userId, meta.problemId, meta.score, dailyId);
             meta.processed = true;
             await redisClient.set(`submission_meta:${id}`, JSON.stringify(meta));
             result.rewards = stats;
@@ -483,12 +484,19 @@ router.post('/run', async (req, res) => {
     const { problemId, code, language } = req.body;
     if (!problemId || !code || !language) return res.status(400).json({ message: 'Missing fields' });
 
-    const db = getDB();
-    const problem = db.problems.find(p => p.id == problemId);
-    if (!problem) return res.status(404).json({ message: 'Problem not found' });
+    const { data: problem, error } = await supabase
+      .from('problems')
+      .select('*')
+      .eq('id', problemId)
+      .single();
+
+    if (error || !problem) return res.status(404).json({ message: 'Problem not found' });
 
     const submissionId = uuidv4();
-    const testCases = (problem.exampleTestCases || problem.testCases.slice(0, 1)).map(tc => {
+    // Use test_cases (examples) for Run
+    const sourceTestCases = problem.test_cases || [];
+
+    const testCases = sourceTestCases.map(tc => {
       const inputStr = typeof tc.input === 'object' ? JSON.stringify(tc.input) : tc.input;
       const outputStr = typeof tc.output === 'object' ? JSON.stringify(tc.output) : tc.output;
       return { input: inputStr, output: outputStr };
@@ -497,7 +505,7 @@ router.post('/run', async (req, res) => {
     if (!isRedisConnected) {
       if (language === 'javascript' || language === 'python') {
         console.log(`Running locally (Redis down) for run ${submissionId}`);
-        const result = await executeLocally(submissionId, problemId, code, language, testCases);
+        const result = await executeLocally(submissionId, problem, code, language, testCases);
         memoryResults.set(submissionId, result);
         return res.json({ message: 'Run processed (Local Mode)', submissionId });
       }

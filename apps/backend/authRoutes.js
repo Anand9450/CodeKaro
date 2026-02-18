@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { getDB, saveDB } = require('./utils/jsonDb');
+const supabase = require('./utils/supabase');
 
 const router = express.Router();
 
@@ -17,8 +17,12 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    const db = getDB();
-    const existingUser = db.users.find(u => u.email === email);
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .or(`email.eq.${email},username.eq.${username}`)
+      .single();
 
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
@@ -29,15 +33,24 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user
-    const newUser = {
-      id: db.users.length + 1, // Simple ID generation
-      username,
-      email,
-      password: hashedPassword
-    };
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert({
+        username,
+        email,
+        password: hashedPassword,
+        score: 0,
+        streak: 0,
+        coins: 0,
+        solved_problems: []
+      })
+      .select() // Return the created user
+      .single();
 
-    db.users.push(newUser);
-    saveDB(db);
+    if (error) {
+      console.error("Supabase Register Error:", error);
+      return res.status(500).json({ message: 'Registration failed' });
+    }
 
     res.status(201).json({
       _id: newUser.id,
@@ -56,10 +69,17 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const db = getDB();
-    const user = db.users.find(u => u.email === email);
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (error || !user) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    if (await bcrypt.compare(password, user.password)) {
       res.json({
         _id: user.id,
         username: user.username,
@@ -68,7 +88,9 @@ router.post('/login', async (req, res) => {
         user: {
           id: user.id,
           username: user.username,
-          email: user.email
+          email: user.email,
+          score: user.score,
+          coins: user.coins
         }
       });
     } else {

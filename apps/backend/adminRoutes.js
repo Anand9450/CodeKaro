@@ -1,6 +1,6 @@
 const express = require('express');
-const { getDB, saveDB } = require('./utils/jsonDb');
 const { fetchDailyProblem, fetchProblems, fetchProblemsBySlugs } = require('./utils/leetcodeFetcher');
+const supabase = require('./utils/supabase');
 
 const POPULAR_SLUGS = [
   "two-sum", "add-two-numbers", "longest-substring-without-repeating-characters",
@@ -12,13 +12,9 @@ const POPULAR_SLUGS = [
 ];
 
 const router = express.Router();
-const supabase = require('./utils/supabase');
 
 // Fetch All Users (Admin Only)
 router.get('/users', async (req, res) => {
-  // In real app: verify req.user.role === 'admin'
-  // using Auth middleware.
-
   try {
     const { data, error } = await supabase
       .from('users')
@@ -41,24 +37,25 @@ router.post('/seed-leetcode', async (req, res) => {
 
     if (problems.length === 0) return res.status(500).json({ message: "Failed to fetch any problems" });
 
-    const db = getDB();
-    // User requested to remove all fixed problems.
-    // We will replace problems array but keep Daily Problem if it exists?
-    // Or just replace everything.
-    // Let's keep problems that are NOT in the new list?
-    // No, "remove all the fixed problem currently showing".
-    // Fixed problems are IDs 1-5.
-    // The fetched problems will likely be IDs 1-20.
-    // So overwriting is what we want.
+    const upserts = problems.map(p => ({
+      id: parseInt(p.id),
+      title: p.title,
+      difficulty: p.difficulty,
+      description: p.description,
+      slug: p.slug,
+      starter_code: JSON.stringify(p.starterCode), // Store as string if text, or use jsonb column
+      test_cases: p.testCases,
+      hidden_test_cases: p.hiddenTestCases,
+      meta_data: p.metaData,
+      is_daily: p.isDaily || false
+    }));
 
-    // Preserve users
-    db.problems = problems;
+    const { error } = await supabase.from('problems').upsert(upserts, { onConflict: 'id' });
 
-    // Also fetch daily if missing?
-    // Let's ensure at least one is daily?
-    // We leave daily logic separate.
-
-    saveDB(db);
+    if (error) {
+      console.error("Supabase Error:", error);
+      throw error;
+    }
 
     res.json({ message: `Seeded ${problems.length} problems successfully` });
   } catch (e) {
@@ -72,27 +69,26 @@ router.post('/fetch-daily', async (req, res) => {
     const problem = await fetchDailyProblem();
     if (!problem) return res.status(500).json({ message: "Failed to fetch daily problem" });
 
-    const db = getDB();
-
     // Reset previous daily flag
-    db.problems.forEach(p => p.isDaily = false);
+    // Update all problems: set is_daily = false
+    await supabase.from('problems').update({ is_daily: false }).neq('id', 0); // Update all
 
-    // Check if exists
-    const existing = db.problems.find(p => p.id === problem.id || p.title === problem.title);
+    const upsert = {
+      id: parseInt(problem.id),
+      title: problem.title,
+      difficulty: problem.difficulty,
+      description: problem.description,
+      slug: problem.slug,
+      starter_code: JSON.stringify(problem.starterCode),
+      test_cases: problem.testCases,
+      hidden_test_cases: problem.hiddenTestCases,
+      meta_data: problem.metaData,
+      is_daily: true
+    };
 
-    if (existing) {
-      // Update existing? Or skip?
-      // User requested "Updated regularly". So fetch fresh content.
-      Object.assign(existing, problem);
-      // Ensure exampleTestCases are preserved if manually added?
-      // But problem from API has empty testCases. Overwriting might break manual edits.
-      // Let's only update if fetched has test cases OR just update metadata.
-      // For now, overwrite content/title/difficulty.
-    } else {
-      db.problems.push(problem);
-    }
+    const { error } = await supabase.from('problems').upsert(upsert, { onConflict: 'id' });
+    if (error) throw error;
 
-    saveDB(db);
     res.json({ message: "Daily problem fetched", problem });
   } catch (error) {
     console.error(error);
@@ -106,24 +102,26 @@ router.post('/fetch-batch', async (req, res) => {
 
   try {
     const problems = await fetchProblems(limit, skip);
-    const db = getDB();
-    let added = 0;
 
-    for (const p of problems) {
-      const existing = db.problems.find(ep => ep.id == p.id);
-      if (!existing) {
-        db.problems.push(p);
-        added++;
-      } else {
-        // Update fields
-        existing.description = p.description;
-        existing.starterCode = p.starterCode;
-        // Keep manual test cases if any
-      }
-    }
+    if (problems.length === 0) return res.json({ message: "No problems found", count: 0 });
 
-    saveDB(db);
-    res.json({ message: `Fetched ${problems.length} problems. Added ${added} new.`, count: added });
+    const upserts = problems.map(p => ({
+      id: parseInt(p.id),
+      title: p.title,
+      difficulty: p.difficulty,
+      description: p.description,
+      slug: p.slug,
+      starter_code: JSON.stringify(p.starterCode),
+      test_cases: p.testCases,
+      hidden_test_cases: p.hiddenTestCases,
+      meta_data: p.metaData,
+      is_daily: false
+    }));
+
+    const { error } = await supabase.from('problems').upsert(upserts, { onConflict: 'id' });
+    if (error) throw error;
+
+    res.json({ message: `Fetched and upserted ${problems.length} problems.`, count: problems.length });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Server error" });

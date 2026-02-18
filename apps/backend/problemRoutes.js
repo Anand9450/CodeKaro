@@ -1,62 +1,111 @@
 const express = require('express');
-const { getDB } = require('./utils/jsonDb');
+const supabase = require('./utils/supabase');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const db = getDB();
-  // Return summary (exclude test cases for list view to save bandwidth)
-  const problems = db.problems.map(p => ({
+// Helper to map DB snake_case to Frontend camelCase
+const mapProblem = (p) => {
+  if (!p) return null;
+  return {
     id: p.id,
     title: p.title,
     difficulty: p.difficulty,
-    description: p.description
-  }));
-  res.json(problems);
+    description: p.description,
+    slug: p.slug,
+    // Parse starter_code if it's a string
+    starterCode: typeof p.starter_code === 'string' ? JSON.parse(p.starter_code) : p.starter_code,
+    testCases: p.test_cases,
+    // hiddenTestCases: p.hidden_test_cases, // Usually exclude
+    metaData: p.meta_data,
+    isDaily: p.is_daily
+  };
+};
+
+router.get('/', async (req, res) => {
+  try {
+    const { data: problems, error } = await supabase
+      .from('problems')
+      .select('id, title, difficulty, description, slug, is_daily, starter_code')
+      .order('id');
+
+    if (error) throw error;
+
+    const safeProblems = problems.map(p => ({
+      ...mapProblem(p),
+      testCases: undefined // Exclude for list view
+    }));
+
+    res.json(safeProblems);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-router.get('/daily', (req, res) => {
-  const db = getDB();
+router.get('/daily', async (req, res) => {
+  try {
+    // 1. Try to fetch explicitly marked daily problem
+    let { data: problem, error } = await supabase
+      .from('problems')
+      .select('*')
+      .eq('is_daily', true)
+      .single();
 
-  // 1. Check for explicitly marked Daily Problem
-  const dailySpecific = db.problems.find(p => p.isDaily === true);
-  if (dailySpecific) {
-    const { testCases, hiddenTestCases, ...safe } = dailySpecific;
-    return res.json(safe);
+    if (!problem) {
+      // 2. Fallback: random or based on date hash
+      // Just list all IDs and pick one? Or just pick ID 1.
+      const { data: all } = await supabase.from('problems').select('id');
+      if (all && all.length > 0) {
+        const today = new Date().toDateString();
+        let hash = 0;
+        for (let i = 0; i < today.length; i++) {
+          hash = ((hash << 5) - hash) + today.charCodeAt(i);
+          hash |= 0;
+        }
+        const index = Math.abs(hash) % all.length;
+        const { data: fallback } = await supabase
+          .from('problems')
+          .select('*')
+          .eq('id', all[index].id)
+          .single();
+        problem = fallback;
+      }
+    }
+
+    if (!problem) return res.status(404).json({ message: 'No problems available' });
+
+    // Remove hidden test cases
+    const mapped = mapProblem(problem);
+    delete mapped.hiddenTestCases; // Ensure hidden are gone
+
+    res.json(mapped);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  // 2. Fallback to hash logic
-  const today = new Date().toDateString();
-  let hash = 0;
-  for (let i = 0; i < today.length; i++) {
-    hash = ((hash << 5) - hash) + today.charCodeAt(i);
-    hash |= 0;
-  }
-
-  const total = db.problems.length;
-  if (total === 0) return res.status(404).json({ message: 'No problems available' });
-
-  const index = Math.abs(hash) % total;
-  const problem = db.problems[index];
-
-  const { testCases, hiddenTestCases, ...safeProblem } = problem;
-  res.json(safeProblem);
 });
 
-router.get('/:id', (req, res) => {
-  const db = getDB();
-  const problem = db.problems.find(p => p.id == req.params.id);
+router.get('/:id', async (req, res) => {
+  try {
+    const { data: problem, error } = await supabase
+      .from('problems')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
 
-  if (!problem) {
-    return res.status(404).json({ message: 'Problem not found' });
+    if (error || !problem) {
+      return res.status(404).json({ message: 'Problem not found' });
+    }
+
+    const mapped = mapProblem(problem);
+    // Remove hidden 
+    delete mapped.hiddenTestCases;
+
+    res.json(mapped);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  // Exclude hidden test cases if needed, but for now we might need them for running locally?
-  // No, checking is done on backend. Frontend only needs examples.
-  // Let's remove testCases from response to hide them from user inspection.
-  const { testCases, ...safeProblem } = problem;
-
-  res.json(safeProblem);
 });
 
 module.exports = router;

@@ -16,137 +16,88 @@ const submissionRoutes = require('./submissionRoutes');
 const problemRoutes = require('./problemRoutes');
 const adminRoutes = require('./adminRoutes');
 
-// Helper to update user stats
-const updateUserStats = (userId, problemId) => {
-  const db = getDB();
-  const user = db.users.find(u => u.id === userId);
-
-  if (!user) return;
-
-  // Update Streak
-  const today = new Date().toISOString().split('T')[0];
-  const lastDate = user.lastSolvedDate;
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-  if (lastDate === today) {
-    // Already solved today
-  } else if (lastDate === yesterday) {
-    user.streak++;
-  } else {
-    user.streak = 1;
-  }
-
-  user.lastSolvedDate = today;
-
-  // Add to solved problems if new
-  if (!user.solvedProblems.includes(problemId)) {
-    user.solvedProblems.push(problemId);
-  }
-
-  // Handle Coins for Daily Problem
-  const dailyId = getDailyProblemId(db.problems);
-  if (problemId == dailyId && !user.dailyCoinCollected) {
-    user.coins += 1;
-    user.dailyCoinCollected = true;
-  }
-  // Let's simplify: 1 coin per unique problem solved.
-  if (!user.solvedProblems.includes(problemId)) {
-    user.coins += 1;
-  }
-
-  saveDB(db);
-};
-
-// Helper for daily ID
-const getDailyProblemId = (problems) => {
-  const today = new Date().toDateString();
-  let hash = 0;
-  for (let i = 0; i < today.length; i++) {
-    hash = ((hash << 5) - hash) + today.charCodeAt(i);
-    hash |= 0;
-  }
-  const total = problems.length;
-  if (total === 0) return -1;
-  return problems[Math.abs(hash) % total].id;
-};
-
-// Multer Storage
-const storage = multer.diskStorage({
-  destination: 'uploads/',
-  filename: (req, file, cb) => {
-    // Unique name
-    cb(null, 'profile-' + Date.now() + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage });
-
-// Serve Uploads
-app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
-
-app.use('/api/auth', authRoutes);
-app.use('/api/submit', submissionRoutes);
-app.use('/api/problems', problemRoutes);
-app.use('/api/admin', adminRoutes);
-
-app.get('/', (req, res) => {
-  res.send('CodeKaro Backend Running (Updated)');
-});
+const supabase = require('./utils/supabase');
 
 // User Profile Endpoint
-app.get('/api/user/profile', (req, res) => {
+app.get('/api/user/profile', async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.status(400).json({ message: "UserId required" });
 
-  const db = getDB();
-  const user = db.users.find(u => u.id == userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-  res.json({
-    username: user.username,
-    email: user.email,
-    fullName: user.fullName || user.username,
-    bio: user.bio || '',
-    profilePicture: user.profilePicture || '',
-    linkedIn: user.linkedIn || '',
-    github: user.github || '',
-    mobile: user.mobile || '',
-    leetCode: user.leetCode || '',
-    codeForces: user.codeForces || '',
-    score: user.score || 0,
-    coins: user.coins || 0,
-    streak: user.streak || 0,
-    solvedProblems: user.solvedProblems || [],
-    totalSolved: user.solvedProblems ? user.solvedProblems.length : 0
-  });
+    if (error || !user) return res.status(404).json({ message: "User not found" });
+
+    res.json({
+      username: user.username,
+      email: user.email,
+      fullName: user.full_name || user.username,
+      bio: user.bio || '',
+      profilePicture: user.profile_picture || '',
+      linkedIn: user.linkedin || '',
+      github: user.github || '',
+      mobile: user.mobile || null,
+      leetCode: user.leetcode || '',
+      codeForces: user.codeforces || '',
+      score: user.score || 0,
+      coins: user.coins || 0,
+      streak: user.streak || 0,
+      solvedProblems: user.solved_problems || [],
+      totalSolved: user.solved_problems ? user.solved_problems.length : 0
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.put('/api/user/profile', (req, res) => {
+app.put('/api/user/profile', async (req, res) => {
   const { userId, fullName, bio, profilePicture, linkedIn, github, mobile, leetCode, codeForces, username } = req.body;
 
   if (!userId) return res.status(400).json({ message: "UserId required" });
 
-  const db = getDB();
-  const user = db.users.find(u => u.id == userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
+  try {
+    // Check username uniqueness if changing
+    if (username) {
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', username)
+        .neq('id', userId)
+        .single();
 
-  // Handle Username update
-  if (username && username !== user.username) {
-    const exists = db.users.find(u => u.username === username);
-    if (exists) return res.status(400).json({ message: "Username already taken" });
-    user.username = username;
+      if (existing) return res.status(400).json({ message: "Username already taken" });
+    }
+
+    const updates = {};
+    if (username !== undefined) updates.username = username;
+    if (fullName !== undefined) updates.full_name = fullName;
+    if (bio !== undefined) updates.bio = bio;
+    if (profilePicture !== undefined) updates.profile_picture = profilePicture;
+    if (linkedIn !== undefined) updates.linkedin = linkedIn;
+    if (github !== undefined) updates.github = github;
+    if (mobile !== undefined) updates.mobile = mobile;
+    if (leetCode !== undefined) updates.leetcode = leetCode;
+    if (codeForces !== undefined) updates.codeforces = codeForces;
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ message: "Profile updated", user: updatedUser });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  if (fullName !== undefined) user.fullName = fullName;
-  if (bio !== undefined) user.bio = bio;
-  if (profilePicture !== undefined) user.profilePicture = profilePicture;
-  if (linkedIn !== undefined) user.linkedIn = linkedIn;
-  if (github !== undefined) user.github = github;
-  if (mobile !== undefined) user.mobile = mobile;
-  if (leetCode !== undefined) user.leetCode = leetCode;
-  if (codeForces !== undefined) user.codeForces = codeForces;
-
-  saveDB(db);
-  res.json({ message: "Profile updated", user: { ...user, password: "" } });
 });
 
 // Upload Endpoint
@@ -159,44 +110,62 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 });
 
 // Search Users Endpoint
-app.get('/api/users/search', (req, res) => {
+app.get('/api/users/search', async (req, res) => {
   const query = req.query.q ? req.query.q.toLowerCase() : '';
   if (!query) return res.json([]);
 
-  const db = getDB();
-  const users = db.users.filter(u => u.username.toLowerCase().includes(query))
-    .map(u => ({
+  try {
+    const { data: users } = await supabase
+      .from('users')
+      .select('username, full_name, profile_picture')
+      .ilike('username', `%${query}%`)
+      .limit(10);
+
+    const mapped = (users || []).map(u => ({
       username: u.username,
-      profilePicture: u.profilePicture,
-      fullName: u.fullName
+      fullName: u.full_name,
+      profilePicture: u.profile_picture
     }));
 
-  res.json(users);
+    res.json(mapped);
+  } catch (err) {
+    console.error(err);
+    res.json([]);
+  }
 });
 
 // Get Public Profile by Username
-app.get('/api/u/:username', (req, res) => {
+app.get('/api/u/:username', async (req, res) => {
   const username = req.params.username;
-  const db = getDB();
-  const user = db.users.find(u => u.username === username);
-  if (!user) return res.status(404).json({ message: "User not found" });
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .single();
 
-  res.json({
-    username: user.username,
-    fullName: user.fullName || user.username,
-    bio: user.bio || '',
-    profilePicture: user.profilePicture || '',
-    score: user.score || 0,
-    coins: user.coins || 0,
-    streak: user.streak || 0,
-    solvedProblems: user.solvedProblems || [],
-    totalSolved: user.solvedProblems ? user.solvedProblems.length : 0,
-    linkedIn: user.linkedIn || '',
-    github: user.github || '',
-    mobile: user.mobile || null,
-    leetCode: user.leetCode || '',
-    codeForces: user.codeForces || ''
-  });
+    if (error || !user) return res.status(404).json({ message: "User not found" });
+
+    res.json({
+      username: user.username,
+      fullName: user.full_name || user.username,
+      bio: user.bio || '',
+      profilePicture: user.profile_picture || '',
+      score: user.score || 0,
+      coins: user.coins || 0,
+      streak: user.streak || 0,
+      solvedProblems: user.solved_problems || [],
+      totalSolved: user.solved_problems ? user.solved_problems.length : 0,
+      linkedIn: user.linkedin || '',
+      github: user.github || '',
+      mobile: user.mobile || null,
+      leetCode: user.leetcode || '',
+      codeForces: user.codeforces || ''
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 if (require.main === module) {
