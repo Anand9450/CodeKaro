@@ -4,12 +4,21 @@ const { getDB, saveDB } = require('./utils/jsonDb');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const multer = require('multer');
+const isVercel = process.env.VERCEL === '1';
+const uploadDir = isVercel ? '/tmp/uploads/' : 'uploads/';
+const upload = multer({ dest: uploadDir });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+// Serve uploads (Note: On Vercel this is ephemeral)
+if (isVercel) {
+  app.use('/api/uploads', express.static('/tmp/uploads'));
+} else {
+  app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+}
 
 const authRoutes = require('./authRoutes');
 

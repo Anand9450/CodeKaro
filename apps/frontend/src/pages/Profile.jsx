@@ -40,6 +40,23 @@ const Profile = () => {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const data = new FormData();
+    data.append('image', file);
+
+    try {
+      const res = await axios.post(`${API_URL}/upload`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setFormData(prev => ({ ...prev, profilePicture: res.data.imageUrl }));
+    } catch (err) {
+      console.error("Upload failed", err);
+    }
+  };
+
   const handleUpdate = async () => {
     try {
       await axios.put(`${API_URL}/user/profile`, {
@@ -63,19 +80,22 @@ const Profile = () => {
           {/* Profile Image */}
           <div className="flex flex-col items-center gap-4">
             <img
-              src={profile.profilePicture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+              src={formData.profilePicture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
               alt="Profile"
               className="w-40 h-40 rounded-full border-4 border-blue-500 shadow-xl bg-gray-700 object-cover"
             />
             {isEditing && (
-              <input
-                type="text"
-                placeholder="Image URL"
-                value={formData.profilePicture}
-                onChange={(e) => setFormData({ ...formData, profilePicture: e.target.value })}
-                className="bg-gray-700 text-xs p-2 rounded w-48 text-white outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs py-2 px-4 rounded transition">
+                Change Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
             )}
+
           </div>
 
           {/* Info */}

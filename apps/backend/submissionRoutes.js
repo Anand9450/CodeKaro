@@ -44,7 +44,7 @@ const os = require('os');
 
 const executeLocally = async (submissionId, problem, code, language, testCases) => {
   const problemId = problem.id;
-  const ext = language === 'python' ? 'py' : 'js';
+  const ext = language === 'python' ? 'py' : 'cjs';
   const tmpDir = os.tmpdir();
   const filePath = path.join(tmpDir, `${submissionId}.${ext}`);
 
@@ -151,31 +151,11 @@ try:
         except:
             args = []
     
-    # Strategy 2: Exec (Fallback for "turnedOn = 1" style)
-    if not args:
-        local_scope = {}
-        exec_str = input_str
-        
-        # Robust Input Cleaning:
-        # If input is "nums = [...], target = 9", replace ", target =" with "\ntarget ="
-        # iterate params to fix separators
-        for p in meta_params:
-            # Check if ", p['name'] =" exists
-            # Regex sub: ",\\s*name\\s*=" -> "\\nname ="
-            pattern = r',\s*(' + re.escape(p['name']) + r')\s*='
-            exec_str = re.sub(pattern, r'\\n\\1 =', exec_str)
-        
-        try:
-            exec(exec_str, {}, local_scope)
-            for p in meta_params:
-                if p['name'] in local_scope:
-                    args.append(local_scope[p['name']])
-        except:
-            pass
+
 
     if len(args) != len(meta_params):
         # Last resort: if 1 param, try load whole string
-        if len(meta_params) == 1:
+
             try:
                 args = [json.loads(input_str)]
             except:
@@ -188,6 +168,8 @@ try:
     for i, p in enumerate(meta_params):
         if p['type'] == 'ListNode' and isinstance(args[i], list):
             args[i] = to_linked_list(args[i])
+        elif p['type'] == 'string' and not isinstance(args[i], str):
+            args[i] = str(args[i])
 
     sol = Solution()
     method = getattr(sol, meta_name)
@@ -236,6 +218,7 @@ try:
         print(json.dumps(result))
 except Exception as e:
     print(str(e), file=sys.stderr)
+    sys.exit(1)
 `;
     }
   }
@@ -312,6 +295,8 @@ except Exception as e:
     return { verdict: "Internal Error", details: e.message };
   }
 };
+
+
 
 const runScript = (language, filePath, input) => {
   return new Promise((resolve, reject) => {
