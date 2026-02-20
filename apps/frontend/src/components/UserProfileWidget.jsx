@@ -17,14 +17,18 @@ const UserProfileWidget = () => {
 
   useEffect(() => {
     if (user?.id) {
+      // If local guest, don't fetch from server
+      if (user.token === 'mock-guest-token') return;
       fetchProfile();
     }
   }, [user]);
 
   const fetchProfile = async () => {
     try {
+      if (user.token === 'mock-guest-token') return; // Double check
       const res = await axios.get(`${API_URL}/user/profile?userId=${user.id}`);
       setProfile(res.data);
+      // ... setFormData
       setFormData({
         fullName: res.data.fullName || '',
         bio: res.data.bio || '',
@@ -41,6 +45,22 @@ const UserProfileWidget = () => {
       console.error(err);
     }
   };
+
+  // Initialize specific profile for local guest to avoid null render
+  useEffect(() => {
+    if (user?.token === 'mock-guest-token') {
+      setProfile({
+        fullName: 'Guest Explorer',
+        username: 'guest',
+        bio: 'Just passing through!',
+        score: 0,
+        totalSolved: 0,
+        coins: 0,
+        streak: 0,
+        profilePicture: null
+      });
+    }
+  }, [user]);
 
   const handleUpdate = async () => {
     try {
@@ -187,12 +207,24 @@ const UserProfileWidget = () => {
         </div>
       )}
 
-      <button
-        onClick={() => isEditing ? handleUpdate() : setIsEditing(true)}
-        className={`w-full py-2 rounded font-bold text-sm transition ${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-      >
-        {isEditing ? 'Save Profile' : 'Edit Profile'}
-      </button>
+      {user.role === 'guest' ? (
+        <div className="space-y-2">
+          <button
+            onClick={() => window.location.href = '/signup'}
+            className="w-full py-2 rounded font-bold text-sm transition bg-green-600 hover:bg-green-700 text-white animate-pulse"
+          >
+            Sign Up to Save Progress
+          </button>
+          <p className="text-xs text-center text-gray-500">Guest accounts are temporary.</p>
+        </div>
+      ) : (
+        <button
+          onClick={() => isEditing ? handleUpdate() : setIsEditing(true)}
+          className={`w-full py-2 rounded font-bold text-sm transition ${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+        >
+          {isEditing ? 'Save Profile' : 'Edit Profile'}
+        </button>
+      )}
     </div>
   );
 };

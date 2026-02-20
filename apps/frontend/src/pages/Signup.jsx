@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 
 const Signup = () => {
   const [username, setUsername] = useState('');
@@ -8,6 +9,7 @@ const Signup = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const { loginAsGuest } = useContext(AuthContext);
 
   const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -66,6 +68,18 @@ const Signup = () => {
         <p className="mt-4 text-center text-sm text-gray-400">
           Already have an account? <Link to="/login" className="text-blue-400 hover:underline">Log in</Link>
         </p>
+        <div className="mt-6 border-t border-gray-700 pt-4">
+          <button
+            type="button"
+            onClick={async () => {
+              const success = await loginAsGuest();
+              if (success) navigate('/');
+            }}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-4 rounded transition flex items-center justify-center gap-2"
+          >
+            <span>🚀</span> Continue as Guest
+          </button>
+        </div>
       </form>
     </div>
   );

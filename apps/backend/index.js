@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { getDB, saveDB } = require('./utils/jsonDb');
-require('dotenv').config();
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const multer = require('multer');
 
 const app = express();
@@ -12,11 +12,22 @@ app.use(cors());
 app.use(express.json());
 
 const authRoutes = require('./authRoutes');
+
+// Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date() });
+});
+
 const submissionRoutes = require('./submissionRoutes');
 const problemRoutes = require('./problemRoutes');
 const adminRoutes = require('./adminRoutes');
 
 const supabase = require('./utils/supabase');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/submit', submissionRoutes);
+app.use('/api/problems', problemRoutes);
+app.use('/api/admin', adminRoutes);
 
 // User Profile Endpoint
 app.get('/api/user/profile', async (req, res) => {

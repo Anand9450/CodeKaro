@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
 
     if (error) {
       console.error("Supabase Register Error:", error);
-      return res.status(500).json({ message: 'Registration failed' });
+      return res.status(500).json({ message: error.message || 'Registration failed' });
     }
 
     res.status(201).json({
@@ -107,5 +107,61 @@ const generateToken = (id) => {
     expiresIn: '30d',
   });
 };
+
+const { v4: uuidv4 } = require('uuid');
+
+router.post('/guest', async (req, res) => {
+  try {
+    const guestId = uuidv4().slice(0, 8);
+    const username = `guest_${guestId}`;
+    const email = `${username}@temp.codekaro.com`;
+    const password = `guest_${uuidv4()}`;
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create guest user
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert({
+        username,
+        email,
+        password: hashedPassword,
+        score: 0,
+        streak: 0,
+        coins: 0,
+        solved_problems: [],
+        role: 'guest'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase Guest Error:", error);
+      return res.status(500).json({ message: 'Failed to create guest session' });
+    }
+
+    res.status(201).json({
+      _id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      role: 'guest',
+      token: generateToken(newUser.id),
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        score: 0,
+        coins: 0,
+        role: 'guest' // Important flag
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;

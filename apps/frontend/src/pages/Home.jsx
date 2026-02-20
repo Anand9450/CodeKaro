@@ -78,13 +78,27 @@ const Home = () => {
 
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 ml-4">
-            <span onClick={() => navigate('/profile')} className="font-semibold text-lg cursor-pointer hover:text-blue-400 transition">{user?.username}</span>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-red-600 rounded hover:bg-red-700 transition font-bold cursor-pointer text-sm"
-            >
-              Logout
-            </button>
+            <span onClick={() => navigate('/profile')} className="font-semibold text-lg cursor-pointer hover:text-blue-400 transition">
+              {user?.role === 'guest' ? 'Guest 🚀' : user?.username}
+            </span>
+            {user?.role === 'guest' ? (
+              <button
+                onClick={() => navigate('/signup')}
+                className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 transition font-bold cursor-pointer text-sm animate-pulse"
+              >
+                Sign Up
+              </button>
+            ) : (
+              <button
+                onClick={logout}
+                className="px-4 py-2 bg-red-600 rounded hover:bg-red-700 transition font-bold cursor-pointer text-sm"
+              >
+                Logout
+              </button>
+            )}
+            {user?.role === 'guest' && (
+              <button onClick={logout} className="text-gray-400 hover:text-white text-xs underline">Exit</button>
+            )}
           </div>
         </div>
       </nav>
