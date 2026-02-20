@@ -135,21 +135,40 @@ const Home = () => {
               {dailyProblem ? (
                 <div className="relative z-10">
                   <h3 className="text-xl font-bold text-white mb-2">{dailyProblem.title}</h3>
-                  <span className={`px-2 py-1 rounded text-xs inline-block mb-4 ${dailyProblem.difficulty === 'Easy' ? 'bg-green-900 text-green-300' :
-                    dailyProblem.difficulty === 'Medium' ? 'bg-yellow-900 text-yellow-300' :
-                      'bg-red-900 text-red-300'
-                    }`}>
-                    {dailyProblem.difficulty}
-                  </span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${dailyProblem.difficulty === 'Easy' ? 'bg-green-900 text-green-300' :
+                      dailyProblem.difficulty === 'Medium' ? 'bg-yellow-900 text-yellow-300' :
+                        'bg-red-900 text-red-300'
+                      }`}>
+                      {dailyProblem.difficulty}
+                    </span>
+                    {dailyProblem.acRate != null && (
+                      <span className="text-xs text-purple-300">✓ {dailyProblem.acRate}% accepted</span>
+                    )}
+                    {dailyProblem.source === 'leetcode' && (
+                      <span className="text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30 px-2 py-0.5 rounded">LeetCode Live</span>
+                    )}
+                  </div>
+                  {dailyProblem.tags && dailyProblem.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      {dailyProblem.tags.slice(0, 4).map(tag => (
+                        <span key={tag} className="text-[10px] bg-white/10 text-purple-200 px-2 py-0.5 rounded-full">{tag}</span>
+                      ))}
+                    </div>
+                  )}
                   <button
-                    onClick={() => navigate(`/solve/${dailyProblem.id}`)}
-                    className="w-full py-2 px-4 bg-white text-purple-900 hover:bg-gray-100 rounded font-bold transition mt-4"
+                    onClick={() => navigate(`/solve/${dailyProblem.slug || dailyProblem.id}`)}
+                    className="w-full py-2 px-4 bg-white text-purple-900 hover:bg-gray-100 rounded font-bold transition"
                   >
                     Solve Now
                   </button>
                 </div>
               ) : (
-                <p>Loading daily problem...</p>
+                <div className="animate-pulse">
+                  <div className="h-5 bg-white/20 rounded w-1/2 mb-3"></div>
+                  <div className="h-3 bg-white/20 rounded w-1/4 mb-6"></div>
+                  <div className="h-10 bg-white/20 rounded"></div>
+                </div>
               )}
             </div>
 

@@ -12,32 +12,41 @@ export const AuthProvider = ({ children }) => {
   const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
-    if (token) {
-      if (token === "mock-guest-token") {
-        setUser({
-          id: 'guest-local',
-          username: 'Guest_explorer',
-          role: 'guest',
-          isGuest: true,
-          token: "mock-guest-token"
-        });
-        setLoading(false);
-        return;
+    const initUser = async () => {
+      if (token) {
+        if (token === "mock-guest-token") {
+          setUser({
+            id: 'guest-local',
+            username: 'Guest_explorer',
+            role: 'guest',
+            isGuest: true,
+            token: "mock-guest-token"
+          });
+          setLoading(false);
+          return;
+        }
+        try {
+          const decoded = jwtDecode(token);
+          // Fetch full profile to get username, role, coins, etc.
+          const res = await axios.get(`${API_URL}/user/profile?userId=${decoded.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setUser({ ...res.data, id: decoded.id, token });
+        } catch (error) {
+          // If profile fetch fails, still use decoded token data
+          try {
+            const decoded = jwtDecode(token);
+            setUser({ ...decoded, token });
+          } catch (e) {
+            localStorage.removeItem('token');
+            setToken(null);
+            setUser(null);
+          }
+        }
       }
-      try {
-        const decoded = jwtDecode(token);
-        // Check if token also has user info stored or fetch it? 
-        // For now, rely on token payload.
-        // If guest, we might need to verify with backend, but token verification is faster.
-        setUser({ ...decoded, token });
-      } catch (error) {
-        console.error("Invalid token", error);
-        localStorage.removeItem('token');
-        setToken(null);
-        setUser(null);
-      }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+    initUser();
   }, [token]);
 
   const login = (newToken, userData) => {

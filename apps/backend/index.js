@@ -27,7 +27,36 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
-const submissionRoutes = require('./submissionRoutes');
+// Debug endpoint - diagnose Supabase connection
+app.get('/api/debug', async (req, res) => {
+  const results = {
+    env: {
+      SUPABASE_URL: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.substring(0, 30) + '...' : 'MISSING',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET (len=' + process.env.SUPABASE_SERVICE_ROLE_KEY.length + ')' : 'MISSING',
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET (len=' + process.env.SUPABASE_ANON_KEY.length + ')' : 'MISSING',
+      JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'MISSING',
+      VERCEL: process.env.VERCEL || 'not set',
+      NODE_ENV: process.env.NODE_ENV || 'not set',
+    }
+  };
+  try {
+    const supabase = require('./utils/supabase');
+    const { data, error } = await supabase.from('problems').select('id').limit(1);
+    results.supabase = { success: !error, error: error ? error.message : null, rowCount: data ? data.length : 0 };
+  } catch (e) {
+    results.supabase = { success: false, error: e.message, stack: e.stack };
+  }
+  res.json(results);
+});
+
+let submissionRoutes;
+try {
+  submissionRoutes = require('./submissionRoutes');
+} catch (e) {
+  console.error('Failed to load submissionRoutes:', e.message);
+  submissionRoutes = require('express').Router();
+  submissionRoutes.use((req, res) => res.status(503).json({ message: 'Submission service unavailable', detail: e.message }));
+}
 const problemRoutes = require('./problemRoutes');
 const adminRoutes = require('./adminRoutes');
 

@@ -5,6 +5,7 @@
     "apps/*"
   ],
   "scripts": {
-    "postinstall": "cd apps/backend && npm install && cd ../frontend && npm install"
+    "install:all": "cd apps/backend && npm install && cd ../frontend && npm install",
+    "build": "cd apps/frontend && npm run build"
   }
 }
